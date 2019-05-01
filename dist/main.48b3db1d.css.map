@@ -1,0 +1,1 @@
+{"version":3,"sources":["styles/main.scss"],"names":[],"mappings":"AAAA;AAAA;EAEI;EACA;EACA","file":"main.48b3db1d.css","sourceRoot":"..","sourcesContent":["html,\nbody {\n    background-color: black;\n    padding: 0;\n    margin: 0;\n}"]}
