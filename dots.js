@@ -1,13 +1,18 @@
 import 'babel-polyfill'
 import $ from 'jquery'
 import Two from 'two.js'
+import { TweenLite } from 'gsap'
+import numberUtils from '@yr/number-utils'
 
 class Dot {
   constructor(element) {
     this.defaultConfig = {
-      animationTime: 0.6,
-      bgDots: 50,
+      delayMax: 1,
+      animationTime: 6,
+      bgDots: 1000,
+      dotSize: 3,
       sampleRate: 10,
+      scale: 0.7,
       element,
     }
 
@@ -17,6 +22,7 @@ class Dot {
     this._sketch()
     this._initTwo()
     this._drawSVG()
+    this._drawAndAnimateBG()
   }
 
   _initTwo() {
@@ -67,15 +73,17 @@ class Dot {
   }
 
   _drawSVG() {
-    const width = $(this.config.element).width()
-    const height = $(this.config.element).height()
+    this.width = $(this.config.element).width()
+    this.height = $(this.config.element).height()
 
-    const scale = 0.8
-    const artWidth = width * scale
+    const scale = this.config.scale
+    const artWidth = this.width * scale
     const artHeight = artWidth * this.viewbox.aspectRatio
 
-    const offsetX = (width - artWidth) / 2
-    const offsetY = (height - artHeight) / 2
+    const offsetX = (this.width - artWidth) / 2
+    const offsetY = (this.height - artHeight) / 2
+
+    const circles = []
 
     this.shapes.forEach(shapePoints => {
       for (var i = 0; i < shapePoints.length; i++) {
@@ -83,20 +91,39 @@ class Dot {
         const x1 = point1.x * artWidth + offsetX
         const y1 = point1.y * artHeight + offsetY
 
-        const circle = this.two.makeCircle(x1, y1, 3)
-        circle.fill = '#FFFFFF'
-        circle.noStroke()
-
         const p2Index = i + 1 === shapePoints.length ? 0 : i + 1
         const point2 = shapePoints[p2Index]
         const x2 = point2.x * artWidth + offsetX
         const y2 = point2.y * artHeight + offsetY
-        const line = this.two.makeLine(x1, y1, x2, y2, true)
-        line.stroke = '#CCC'
+        const line = this.two.makeLine(0, 0, 100, 0, true)
+        line.stroke = '#555'
+        line.linewidth = 2
+
+        const circle = this.two.makeCircle(x1, y1, this.config.dotSize)
+        // circles.push({ circle,  x: "-=10", y: "+=20"})
+        const maxDist = this.width / 2
+        TweenLite.from(circle, this.config.animationTime, {
+          x0: x1 + numberUtils.rangedRandom(-maxDist, maxDist),
+          y0: y1 + numberUtils.rangedRandom(-maxDist, maxDist),
+          x1: x1,
+          y1: y1,
+          onUpdateParams: ['{self}', { circle, line }],
+          onUpdate: function(t, shapes) {
+            const p = t.progress()
+
+            const cTranslation = shapes.circle.translation
+            cTranslation.x = numberUtils.interpolate(p, t.vars.x0, t.vars.x1)
+            cTranslation.y = numberUtils.interpolate(p, t.vars.y0, t.vars.y1)
+
+            const lTranslation = shapes.line.translation
+            lTranslation.x = numberUtils.interpolate(p, t.vars.x0, t.vars.x1)
+            lTranslation.y = numberUtils.interpolate(p, t.vars.y0, t.vars.y1)
+          },
+        })
+        circle.fill = '#FFFFFF'
+        circle.noStroke()
       }
     })
-
-    this.two.play()
   }
 
   _drawAndAnimateBG() {
@@ -104,10 +131,13 @@ class Dot {
     const ranRng = (min, max) => min + Math.random() * (max - min)
 
     const particles = []
-    const limit = 200
 
-    for (var i = 0; i < limit; i++) {
-      const circle = two.makeCircle(ran(window.innerWidth), ran(window.innerHeight), 3)
+    for (var i = 0; i < this.config.bgDots; i++) {
+      const circle = this.two.makeCircle(
+        numberUtils.rangedRandom(0, this.width),
+        numberUtils.rangedRandom(0, this.height),
+        this.config.dotSize
+      )
       circle.fill = '#FFFFFF'
       circle.opacity = ranRng(0.5, 1)
 
@@ -116,26 +146,23 @@ class Dot {
       particles.push({ circle, momentum })
     }
 
-    two
+    this.two
       .bind('update', frameCt => {
         // move shit.
         particles.forEach(p => {
           const { circle, momentum } = p
           const current = circle.translation
-          current.x = (current.x + momentum.x) % window.innerWidth
-          current.y = (current.y + momentum.y) % window.innerHeight
+          current.x = (current.x + momentum.x) % this.width
+          current.y = (current.y + momentum.y) % this.height
         })
       })
       .play()
   }
-
-  start() {}
 }
 
 ;(async function() {
   const dots = Array.prototype.slice.call(document.querySelectorAll('.dot'))
   dots.forEach(async dot => {
     const d = new Dot(dot)
-    // await d.sketch()
   })
 })()
