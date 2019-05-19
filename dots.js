@@ -8,12 +8,16 @@ class Dot {
   constructor(element) {
     this.defaultConfig = {
       delayMax: 1,
-      animationTime: 6,
-      bgDots: 1000,
+      animationTime: 5,
+      bgDots: 300,
       dotSize: 3,
-      sampleRate: 10,
-      scale: 0.7,
+      sampleRate: 17,
+      scale: 0.8,
       element,
+      lineWidth: 4,
+      maxStrayStart: 200,
+      maxStrayEnd: 5,
+      stroke: '#5566AA',
     }
 
     this.config = { ...this.defaultConfig, ...element.dataset }
@@ -64,8 +68,15 @@ class Dot {
         let { x, y } = shape.getPointAtLength(p)
         x = parseFloat(x / this.viewbox.width).toFixed(4)
         y = parseFloat(y / this.viewbox.height).toFixed(4)
-        pathPoints.push({ x, y })
+        pathPoints.push(new Two.Vector(x, y))
       }
+
+      // Dont forget the last point.
+      let { x, y } = shape.getPointAtLength(length)
+      x = parseFloat(x / this.viewbox.width).toFixed(4)
+      y = parseFloat(y / this.viewbox.height).toFixed(4)
+      pathPoints.push(new Two.Vector(x, y))
+
       return pathPoints
     })
 
@@ -73,56 +84,88 @@ class Dot {
   }
 
   _drawSVG() {
-    this.width = $(this.config.element).width()
-    this.height = $(this.config.element).height()
+    const { dotSize, scale, element, animationTime, maxStrayStart, maxStrayEnd } = this.config
 
-    const scale = this.config.scale
+    this.back = this.two.makeGroup()
+
+    this.width = $(element).width()
+    this.height = $(element).height()
+
+    // Scale the artwork (while maintaining aspect ratio)
     const artWidth = this.width * scale
     const artHeight = artWidth * this.viewbox.aspectRatio
 
+    // For centering artwork.
     const offsetX = (this.width - artWidth) / 2
     const offsetY = (this.height - artHeight) / 2
 
-    const circles = []
+    this.circleLines = []
 
     this.shapes.forEach(shapePoints => {
-      for (var i = 0; i < shapePoints.length; i++) {
-        const point1 = shapePoints[i]
-        const x1 = point1.x * artWidth + offsetX
-        const y1 = point1.y * artHeight + offsetY
+      const shape = []
+      for (let i = 0; i < shapePoints.length; i++) {
+        // Derive location.
+        let end = shapePoints[i]
 
-        const p2Index = i + 1 === shapePoints.length ? 0 : i + 1
-        const point2 = shapePoints[p2Index]
-        const x2 = point2.x * artWidth + offsetX
-        const y2 = point2.y * artHeight + offsetY
-        const line = this.two.makeLine(0, 0, 100, 0, true)
-        line.stroke = '#555'
-        line.linewidth = 2
+        // Map to art size & offset.
+        end.x = end.x * artWidth + offsetX
+        end.y = end.y * artHeight + offsetY
 
-        const circle = this.two.makeCircle(x1, y1, this.config.dotSize)
-        // circles.push({ circle,  x: "-=10", y: "+=20"})
-        const maxDist = this.width / 2
-        TweenLite.from(circle, this.config.animationTime, {
-          x0: x1 + numberUtils.rangedRandom(-maxDist, maxDist),
-          y0: y1 + numberUtils.rangedRandom(-maxDist, maxDist),
-          x1: x1,
-          y1: y1,
-          onUpdateParams: ['{self}', { circle, line }],
-          onUpdate: function(t, shapes) {
-            const p = t.progress()
-
-            const cTranslation = shapes.circle.translation
-            cTranslation.x = numberUtils.interpolate(p, t.vars.x0, t.vars.x1)
-            cTranslation.y = numberUtils.interpolate(p, t.vars.y0, t.vars.y1)
-
-            const lTranslation = shapes.line.translation
-            lTranslation.x = numberUtils.interpolate(p, t.vars.x0, t.vars.x1)
-            lTranslation.y = numberUtils.interpolate(p, t.vars.y0, t.vars.y1)
-          },
-        })
-        circle.fill = '#FFFFFF'
-        circle.noStroke()
+        shape.push({ end })
       }
+
+      // Now, draw the circles
+      shape.forEach(({ end }, index) => {
+        const start = (shape[index].start = new Two.Vector(
+          end.x + numberUtils.rangedRandom(-maxStrayStart, maxStrayStart),
+          end.y + numberUtils.rangedRandom(-maxStrayStart, maxStrayStart)
+        ))
+
+        const circle = this.two.makeCircle(start.x, start.y, dotSize)
+        circle.noStroke()
+        shape[index].circle = circle
+      })
+
+      this.circleLines.push(shape)
+    })
+
+    // return
+    // Set up the base animation timer
+    TweenLite.to(this, animationTime, {
+      from: 0,
+      to: 1,
+      callbackScope: this,
+      onUpdateParams: [`{self}`],
+      onUpdate: this.onTick,
+      delay: 2,
+    })
+
+    this.two.play()
+  }
+
+  onTick(tween) {
+    const p = tween.progress() // No idea why this isn't playing nice
+
+    // // // Clear the previous lines.
+    if (this.paths) {
+      this.back.remove(this.paths)
+    }
+    this.paths = new Two.Group()
+    this.back.add(this.paths)
+
+    this.circleLines.forEach(shapes => {
+      let points = []
+      // Position circles
+      shapes.forEach(({ circle, start, end }) => {
+        circle.translation = start.lerp(end, p)
+        points.push(circle.translation.x, circle.translation.y)
+      })
+      points.push(false)
+      const path = this.two.makePath.apply(this.two, points)
+      path.fill = 'none'
+      path.stroke = this.config.stroke
+      path.linewidth = this.config.lineWidth * tween.progress()
+      this.paths.add(path)
     })
   }
 
@@ -139,7 +182,7 @@ class Dot {
         this.config.dotSize
       )
       circle.fill = '#FFFFFF'
-      circle.opacity = ranRng(0.5, 1)
+      // circle.opacity = ranRng(0.5, 1)
 
       const maxSpeed = 1
       const momentum = { x: ranRng(-maxSpeed, maxSpeed), y: ranRng(-maxSpeed, maxSpeed) }
