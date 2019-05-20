@@ -5,8 +5,37 @@ import { TweenLite } from 'gsap'
 import numberUtils from '@yr/number-utils'
 
 class Dot {
+  // Instance properties.
+  config: {
+    delayMax: number
+    animationTime: number
+    bgDots: number
+    dotSize: number
+    sampleRate: number
+    scale: number
+    element: HTMLElement
+    lineWidth: number
+    maxStrayStart: number
+    maxStrayEnd: number
+    stroke: string
+  }
+  two: Two
+  width: number
+  height: number
+  back: Two.Group
+  shapes: array
+  viewbox: {
+    xMin: number
+    yMin: number
+    width: number
+    height: number
+    aspectRatio: number
+  }
+  paths: array
+  circleLines: array
+
   constructor(element) {
-    this.defaultConfig = {
+    const defaultConfig = {
       delayMax: 1,
       animationTime: 5,
       bgDots: 300,
@@ -20,9 +49,14 @@ class Dot {
       stroke: '#5566AA',
     }
 
-    this.config = { ...this.defaultConfig, ...element.dataset }
-    ;['animationTime'].forEach(key => (this.config[key] = parseFloat(this.config[key])))
-    ;[('bgDots', 'sampleRate')].forEach(key => (this.config[key] = parseInt(this.config[key])))
+    this.config = { ...defaultConfig, ...element.dataset }
+
+    // Coerce.
+    const floatKeys: Array = ['animationTime']
+    const intKeys: Array = ['bgDots', 'sampleRate']
+    floatKeys.forEach(key => (this.config[key] = parseFloat(this.config[key])))
+    intKeys.forEach(key => (this.config[key] = parseInt(this.config[key])))
+
     this._sketch()
     this._initTwo()
     this._drawSVG()
@@ -43,38 +77,45 @@ class Dot {
   _sketch() {
     const { sampleRate, element } = this.config
 
-    const svg = $(element)
-    const paths = svg.find('path').toArray()
-    const polygons = svg.find('polygon').toArray()
+    const svg: any = $(element)
+    const paths: Array = svg.find('path').toArray()
+    const polygons: Array = svg.find('polygon').toArray()
 
     // Capture the viewbox.
     const [_, xMin, yMin, width, height] = /viewBox="([^\s]+) ([^\s]+) ([^\s]+) ([^\s]+)"/.exec(svg.prop('outerHTML'))
 
+    const widthAsFloat: number = parseFloat(width)
+    const heightAsFloat: number = parseFloat(height)
+
     this.viewbox = {
       xMin: parseFloat(xMin),
       yMin: parseFloat(yMin),
-      width: parseFloat(width),
-      height: parseFloat(height),
+      width: widthAsFloat,
+      height: heightAsFloat,
+      aspectRatio: heightAsFloat / widthAsFloat,
     }
 
     this.viewbox.aspectRatio = this.viewbox.height / this.viewbox.width
 
     this.shapes = [...paths, ...polygons].map(shape => {
-      const length = shape.getTotalLength()
-      const points = Math.floor(length / sampleRate)
-      const pathPoints = []
-      for (var i = 0; i < points; i++) {
-        const p = i * sampleRate
+      const length: number = shape.getTotalLength()
+      const points: number = Math.floor(length / sampleRate)
+      const pathPoints: array = []
+      for (let i: number = 0; i < points; i++) {
+        const p: number = i * sampleRate
+
+        // https://developer.mozilla.org/en-US/docs/Web/API/SVGPathElement/getPointAtLength
         let { x, y } = shape.getPointAtLength(p)
-        x = parseFloat(x / this.viewbox.width).toFixed(4)
-        y = parseFloat(y / this.viewbox.height).toFixed(4)
+        // Normalize to 0-1
+        x = (x / this.viewbox.width).toFixed(4)
+        y = (y / this.viewbox.height).toFixed(4)
         pathPoints.push(new Two.Vector(x, y))
       }
 
       // Dont forget the last point.
       let { x, y } = shape.getPointAtLength(length)
-      x = parseFloat(x / this.viewbox.width).toFixed(4)
-      y = parseFloat(y / this.viewbox.height).toFixed(4)
+      x = (x / this.viewbox.width).toFixed(4)
+      y = (y / this.viewbox.height).toFixed(4)
       pathPoints.push(new Two.Vector(x, y))
 
       return pathPoints
@@ -84,20 +125,21 @@ class Dot {
   }
 
   _drawSVG() {
-    const { dotSize, scale, element, animationTime, maxStrayStart, maxStrayEnd } = this.config
+    const { dotSize, scale, element, animationTime, maxStrayStart } = this.config
 
+    // This is used to depth sort the lines behind everything else.
     this.back = this.two.makeGroup()
 
     this.width = $(element).width()
     this.height = $(element).height()
 
     // Scale the artwork (while maintaining aspect ratio)
-    const artWidth = this.width * scale
-    const artHeight = artWidth * this.viewbox.aspectRatio
+    const artWidth: number = this.width * scale
+    const artHeight: number = artWidth * this.viewbox.aspectRatio
 
     // For centering artwork.
-    const offsetX = (this.width - artWidth) / 2
-    const offsetY = (this.height - artHeight) / 2
+    const offsetX: number = (this.width - artWidth) / 2
+    const offsetY: number = (this.height - artHeight) / 2
 
     this.circleLines = []
 
@@ -144,7 +186,7 @@ class Dot {
   }
 
   onTick(tween) {
-    const p = tween.progress() // No idea why this isn't playing nice
+    const p: number = tween.progress() // No idea why this isn't playing nice
 
     // // // Clear the previous lines.
     if (this.paths) {
@@ -170,12 +212,12 @@ class Dot {
   }
 
   _drawAndAnimateBG() {
-    const ran = max => Math.round(Math.random() * max)
+    // const ran = max => Math.round(Math.random() * max)
     const ranRng = (min, max) => min + Math.random() * (max - min)
 
     const particles = []
 
-    for (var i = 0; i < this.config.bgDots; i++) {
+    for (let i: number = 0; i < this.config.bgDots; i++) {
       const circle = this.two.makeCircle(
         numberUtils.rangedRandom(0, this.width),
         numberUtils.rangedRandom(0, this.height),
@@ -184,7 +226,7 @@ class Dot {
       circle.fill = '#FFFFFF'
       // circle.opacity = ranRng(0.5, 1)
 
-      const maxSpeed = 1
+      const maxSpeed: number = 1
       const momentum = { x: ranRng(-maxSpeed, maxSpeed), y: ranRng(-maxSpeed, maxSpeed) }
       particles.push({ circle, momentum })
     }
