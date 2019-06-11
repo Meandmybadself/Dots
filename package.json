@@ -11,6 +11,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@babel/core": "^7.4.5",
+    "@babel/plugin-proposal-class-properties": "^7.4.4",
     "@yr/number-utils": "^1.1.2",
     "babel-polyfill": "^6.26.0",
     "gsap": "^2.1.2",
