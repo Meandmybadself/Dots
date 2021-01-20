@@ -15,7 +15,7 @@
     "@babel/plugin-proposal-class-properties": "^7.4.4",
     "@yr/number-utils": "^1.1.2",
     "babel-polyfill": "^6.26.0",
-    "gsap": "^2.1.2",
+    "gsap": "^3.6.0",
     "jquery": "^3.4.0",
     "svg-path-properties": "^0.4.8",
     "two.js": "^0.7.0-beta.3"
